@@ -14,7 +14,6 @@ import (
 	"github.com/gofiber/fiber/v2/middleware/cors"
 	jwtware "github.com/gofiber/jwt/v3"
 	"github.com/golang-jwt/jwt/v4"
-	"github.com/joho/godotenv"
 	"github.com/tanabordeee/pos/adapters"
 	"github.com/tanabordeee/pos/entity"
 	"github.com/tanabordeee/pos/usecases"
@@ -33,10 +32,8 @@ func checkMiddleware(c *fiber.Ctx) error {
 
 	return c.Next()
 }
+
 func main() {
-	if err := godotenv.Load(); err != nil {
-		log.Fatal("Error loading .env file")
-	}
 	app := fiber.New()
 	app.Use(cors.New(cors.Config{
 		AllowOrigins: "http://localhost:5173",
@@ -48,7 +45,7 @@ func main() {
 		log.Fatalf("Invalid port number: %v", err)
 	}
 
-	dsn := fmt.Sprintf("host=%s port=%d user=%s password=%s dbname=%s sslmode=disable",
+	dsn := fmt.Sprintf("host=%s port=%d user=%s password=%s dbname=%s sslmode=require",
 		os.Getenv("DB_HOST"), dbPort, os.Getenv("DB_USER"), os.Getenv("DB_PASSWORD"), os.Getenv("DB_NAME"))
 
 	newLogger := logger.New(
@@ -56,7 +53,7 @@ func main() {
 		logger.Config{
 			SlowThreshold: time.Second, // Slow SQL threshold
 			LogLevel:      logger.Info, // Log level
-			Colorful:      true,        // Disable color
+			Colorful:      true,        // Enable color
 		},
 	)
 	db, err := gorm.Open(postgres.Open(dsn), &gorm.Config{
@@ -69,12 +66,13 @@ func main() {
 	if err := db.AutoMigrate(&entity.Employee{}, &entity.Report{}, &entity.Product{}, &entity.Discount{}, &entity.Auth{}); err != nil {
 		log.Fatalf("failed to migrate database: %v", err)
 	}
-	//Auth
+
+	// Auth
 	AuthRepo := adapters.NewGormAuthRepository(db)
 	AuthService := usecases.NewAuthService(AuthRepo)
 	AuthHandler := adapters.NewHttpAuthHandler(AuthService)
 
-	// EMPLOYEE
+	// Employee
 	EmployeeRepo := adapters.NewGormEmployeeRepository(db)
 	EmployeeService := usecases.NewEmployeeService(EmployeeRepo)
 	EmployeeHandler := adapters.NewHttpEmployeeHeadler(EmployeeService)
@@ -102,7 +100,7 @@ func main() {
 	AdminGroup.Put("/UpdateEmployee/:id", EmployeeHandler.UpdateUseCaseEmployee)
 	AdminGroup.Delete("/DeleteEmployee/:id", EmployeeHandler.DeleteUseCaseEmployee)
 
-	//REPORT
+	// REPORT
 	ReportRepo := adapters.NewGormReportRepository(db)
 	ReportService := usecases.NewReportService(ReportRepo)
 	ReportHandler := adapters.NewHttpReportHandler(ReportService)
@@ -113,7 +111,7 @@ func main() {
 	AdminGroup.Get("/GetReports1Month", ReportHandler.GetReports1Month)
 	AdminGroup.Get("/GetReports1Year", ReportHandler.GetReports1Year)
 
-	//PRODUCT
+	// PRODUCT
 	ProductRepo := adapters.NewGormProductRepository(db)
 	ProductService := usecases.NewProductService(ProductRepo)
 	ProducHandler := adapters.NewHttpProductHandler(ProductService)
@@ -124,7 +122,7 @@ func main() {
 	AdminGroup.Put("/UpdateProduct/:id", ProducHandler.UpdateUseCaseProduct)
 	AdminGroup.Delete("/DeleteProduct/:id", ProducHandler.DeleteUseCaseProduct)
 
-	//DISCOUNT
+	// DISCOUNT
 	DiscountRepo := adapters.NewGormDiscountRepository(db)
 	DiscountService := usecases.NewDiscountService(DiscountRepo)
 	DiscountHandler := adapters.NewHttpDiscountHandler(DiscountService)
@@ -135,9 +133,14 @@ func main() {
 	AdminGroup.Put("/UpdateUseCaseDiscount/:id", DiscountHandler.UpdateUseCaseDiscount)
 	AdminGroup.Delete("/DeleteUseCaseDiscount/:id", DiscountHandler.DeleteUseCaseDiscount)
 
+	port := os.Getenv("PORT")
+	if port == "" {
+		port = "8000" // Default port if not specified
+	}
+
 	// Start server in a goroutine
 	go func() {
-		if err := app.Listen(":8000"); err != nil {
+		if err := app.Listen(":" + port); err != nil {
 			log.Fatalf("failed to start server: %v", err)
 		}
 	}()
@@ -173,28 +176,33 @@ func initializeAPIs(db *gorm.DB) {
 		"password":    "admin123",
 	}
 
+	apiBaseUrl := os.Getenv("API_BASE_URL")
+	if apiBaseUrl == "" {
+		apiBaseUrl = "http://localhost:8000" // Default URL if not specified
+	}
+
 	// Send Createadmin request
-	if err := sendRequest("/Createadmin", adminData); err != nil {
+	if err := sendRequest(apiBaseUrl+"/Createadmin", adminData); err != nil {
 		log.Printf("Skipping /Createadmin due to error: %v", err)
 	}
 
 	// Send CreateAuth request
-	if err := sendRequest("/CreateAuth", authData); err != nil {
+	if err := sendRequest(apiBaseUrl+"/CreateAuth", authData); err != nil {
 		log.Printf("Skipping /CreateAuth due to error: %v", err)
 	}
 }
 
 // Helper function to send HTTP POST requests
-func sendRequest(endpoint string, data map[string]interface{}) error {
+func sendRequest(url string, data map[string]interface{}) error {
 	jsonData, err := json.Marshal(data)
 	if err != nil {
 		log.Printf("Failed to marshal data: %v", err)
 		return nil // Return nil to continue execution
 	}
 
-	resp, err := http.Post("http://localhost:8000"+endpoint, "application/json", bytes.NewBuffer(jsonData))
+	resp, err := http.Post(url, "application/json", bytes.NewBuffer(jsonData))
 	if err != nil {
-		log.Printf("Failed to send request to %s: %v", endpoint, err)
+		log.Printf("Failed to send request to %s: %v", url, err)
 		return nil // Return nil to continue execution
 	}
 	defer resp.Body.Close()
@@ -204,6 +212,6 @@ func sendRequest(endpoint string, data map[string]interface{}) error {
 		return nil // Return nil to continue execution
 	}
 
-	log.Printf("Successfully called %s", endpoint)
+	log.Printf("Successfully called %s", url)
 	return nil // Return nil to indicate success
 }
