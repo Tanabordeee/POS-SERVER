@@ -36,7 +36,7 @@ func checkMiddleware(c *fiber.Ctx) error {
 func main() {
 	app := fiber.New()
 	app.Use(cors.New(cors.Config{
-		AllowOrigins: "*",
+		AllowOrigins: "https://667104b4a5c142a5ca41e580--magenta-marzipan-ac86c3.netlify.app/",
 		AllowMethods: "GET,POST,HEAD,PUT,DELETE,PATCH,OPTIONS",
 	}))
 
