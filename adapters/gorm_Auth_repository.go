@@ -1,12 +1,10 @@
 package adapters
 
 import (
-	"log"
 	"os"
 	"time"
 
 	"github.com/golang-jwt/jwt/v4"
-	"github.com/joho/godotenv"
 	"github.com/tanabordeee/pos/entity"
 	"github.com/tanabordeee/pos/usecases"
 	"golang.org/x/crypto/bcrypt"
@@ -31,9 +29,6 @@ func (r *GormAuthRepository) GetAuthRepository(Auth entity.Auth) (string, error)
 	err := bcrypt.CompareHashAndPassword([]byte(SelectAuth.Password), []byte(Auth.Password))
 	if err != nil {
 		return "", err
-	}
-	if err := godotenv.Load(); err != nil {
-		log.Fatal("load .env error")
 	}
 	// pass = return jwt
 	token := jwt.New(jwt.SigningMethodHS256)
